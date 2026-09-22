@@ -1,0 +1,34 @@
+@import 'tailwindcss';
+
+/*
+ * This app uses Tailwind for its own chrome. The SDK does not — its components
+ * ship plain CSS, imported once in pack-station.tsx as
+ * `@arvist/react/styles.css`. Nothing below is required to use the SDK.
+ *
+ * The mapping here is the useful part to copy: it points Tailwind's colour
+ * utilities at the SDK's own custom properties, so app markup and SDK
+ * components stay in visual lockstep — including through theme changes, since
+ * the indirection resolves at use time rather than being baked in.
+ */
+@theme {
+  --color-arvist-surface: var(--arvist-surface);
+  --color-arvist-surface-muted: var(--arvist-surface-muted);
+  --color-arvist-border: var(--arvist-border);
+  --color-arvist-text: var(--arvist-text);
+  --color-arvist-text-muted: var(--arvist-text-muted);
+
+  --color-arvist-blocking: var(--arvist-blocking);
+  --color-arvist-blocking-surface: var(--arvist-blocking-surface);
+  --color-arvist-warning: var(--arvist-warning);
+  --color-arvist-warning-surface: var(--arvist-warning-surface);
+  --color-arvist-info: var(--arvist-info);
+  --color-arvist-info-surface: var(--arvist-info-surface);
+  --color-arvist-ok: var(--arvist-ok);
+  --color-arvist-ok-surface: var(--arvist-ok-surface);
+}
+
+body {
+  background: var(--arvist-surface-muted);
+  color: var(--arvist-text);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
