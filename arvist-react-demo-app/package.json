@@ -9,11 +9,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@arvist/react": "file:../arvist-react-sdk",
+    "@arvist/react": "file:../../arvist-react-sdk",
     "@fontsource/inter": "^5.3.0",
     "@fontsource/plus-jakarta-sans": "^5.3.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

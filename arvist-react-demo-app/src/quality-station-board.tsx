@@ -20,10 +20,13 @@ import {
 import type { MockBackend } from './mock/backend';
 import { StyleShowcase } from './style-showcase';
 
-const STATION_NAME = 'Z01-PS-001';
+const MOCK_STATION_NAME = 'Z01-PS-001';
 
 export interface QualityStationBoardProps {
-  backend: MockBackend;
+  /** Omit to run against a real Arvist server instead of the mock. */
+  backend?: MockBackend;
+  /** Overrides the mock station name; required when `backend` is omitted. */
+  stationName?: string;
   autoCompleted: boolean;
   onAutoCompletedChange: (value: boolean) => void;
 }
@@ -41,21 +44,22 @@ export interface QualityStationBoardProps {
  * Next to each section is a dashed box with a plain-language note explaining
  * what that hook or component does.
  */
-export function QualityStationBoard({ backend, autoCompleted, onAutoCompletedChange }: QualityStationBoardProps) {
+export function QualityStationBoard({ backend, stationName, autoCompleted, onAutoCompletedChange }: QualityStationBoardProps) {
   const { resolveErrorMessage } = useArvist();
+  const areaName = stationName ?? MOCK_STATION_NAME;
 
   // 1) Checks whether this station exists and is free to use right now. We
   // check again every 30 seconds, so if the station is removed or renamed
   // while this page is open, we find out quickly instead of work quietly
   // disappearing into a station nobody is watching.
-  const binding = useStationBinding(STATION_NAME, { pollMs: 30_000 });
+  const binding = useStationBinding(areaName, { pollMs: 30_000 });
 
   // 2) The main hook for this whole page. It keeps track of one shipment as
   // it's inspected: what step it's on, how far along it is, whether we're
   // still connected for live updates, and whether it's allowed to be marked
   // complete yet.
   const inspection = useInspection({
-    areaName: STATION_NAME,
+    areaName,
     areaId: binding.station?.area_id,
     onCompleted: (shipment, reconciliation) => {
       console.info('[completed]', shipment.shipment_key, reconciliation.totals);
@@ -67,10 +71,6 @@ export function QualityStationBoard({ backend, autoCompleted, onAutoCompletedCha
   // "this box looks damaged").
   const exceptions = useExceptions(inspection.shipment, {
     onResolved: inspection.refresh,
-    // There's no button that edits a count directly on the server. Instead we
-    // just remember the correction here, and it gets sent along the next
-    // time the inspection is submitted.
-    onCorrectCount: ({ lineItem, quantity }) => inspection.stageCorrection(lineItem, quantity),
   });
 
   // 4) Photos taken during the inspection. We pass the whole `shipment`
@@ -83,7 +83,7 @@ export function QualityStationBoard({ backend, autoCompleted, onAutoCompletedCha
   const [log, setLog] = useState<string[]>([]);
   const [rawScans, setRawScans] = useState<string[]>([]);
 
-  useEffect(() => backend.onLog((line) => setLog((l) => [line, ...l].slice(0, 40))), [backend]);
+  useEffect(() => backend?.onLog((line) => setLog((l) => [line, ...l].slice(0, 40))), [backend]);
 
   // 5a) Listens for barcode scans anywhere on the page and shows exactly
   // what was scanned, whether or not it matches anything. This is here just
@@ -173,7 +173,7 @@ export function QualityStationBoard({ backend, autoCompleted, onAutoCompletedCha
             title="Station"
             note={
               <>
-                <code>useStationBinding('{STATION_NAME}')</code> checks whether this station exists
+                <code>useStationBinding('{areaName}')</code> checks whether this station exists
                 and is free to use right now. We check again every 30 seconds, so if the station gets
                 removed or renamed while this page is open, we notice quickly instead of finding
                 out later that work sent here went nowhere. <code>StationStatus</code> is simply
@@ -181,7 +181,7 @@ export function QualityStationBoard({ backend, autoCompleted, onAutoCompletedCha
               </>
             }
           >
-            <StationStatus areaName={STATION_NAME} {...binding} />
+            <StationStatus areaName={areaName} {...binding} />
           </Section>
 
           <Section
@@ -270,10 +270,8 @@ export function QualityStationBoard({ backend, autoCompleted, onAutoCompletedCha
                   exception,
                   resolution,
                   reason,
-                  annotation:
-                    resolution.action === 'identify_product'
-                      ? { image_id: 5000, annotation: { id: 1, category_id: 3, identifiers: { items_quantity: 1 } } }
-                      : undefined,
+                  // Demo stand-in for a real product picker.
+                  sku: resolution.action === 'identify_product' ? 'APP-TEE-NVY-M' : undefined,
                   identifier: resolution.action === 'submit_identifiers' ? 'LPN-000123' : undefined,
                   quantity:
                     resolution.action === 'correct_count' ? exception.quantities?.expected : undefined,
@@ -350,35 +348,49 @@ export function QualityStationBoard({ backend, autoCompleted, onAutoCompletedCha
         </div>
 
         <aside className="space-y-4">
-          <div className="space-y-2 rounded-[var(--arvist-radius)] border border-arvist-border bg-arvist-surface p-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-arvist-text-muted">
-              Simulate the warehouse
-            </h2>
-            <p className="text-xs text-arvist-text-muted">
-              These buttons stand in for things that happen in a real warehouse: a box getting
-              scanned, a unit finishing inspection. They're not part of the SDK; they just fake
-              real-world events so this page has something to react to.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Btn onClick={() => startFromScan('ORD-77421')}>Scan tote</Btn>
-              <Btn onClick={backend.advance}>Next unit</Btn>
-              <Btn onClick={backend.reset}>Reset</Btn>
+          {backend ? (
+            <div className="space-y-2 rounded-[var(--arvist-radius)] border border-arvist-border bg-arvist-surface p-3">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-arvist-text-muted">
+                Simulate the warehouse
+              </h2>
+              <p className="text-xs text-arvist-text-muted">
+                These buttons stand in for things that happen in a real warehouse: a box getting
+                scanned, a unit finishing inspection. They're not part of the SDK; they just fake
+                real-world events so this page has something to react to.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Btn onClick={() => startFromScan('ORD-77421')}>Scan tote</Btn>
+                <Btn onClick={backend.advance}>Next unit</Btn>
+                <Btn onClick={backend.reset}>Reset</Btn>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2 rounded-[var(--arvist-radius)] border border-arvist-border bg-arvist-surface p-3">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-arvist-text-muted">
+                Connected live
+              </h2>
+              <p className="text-xs text-arvist-text-muted">
+                This board is wired to a real Arvist server (station "{areaName}"), same as the
+                SDK sample app. Scan a real tote at that station to see it appear here.
+              </p>
+            </div>
+          )}
 
-          <div className="rounded-[var(--arvist-radius)] border border-arvist-border bg-arvist-surface p-3">
-            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-arvist-text-muted">
-              Event log
-            </h2>
-            <p className="sdk-note mb-2">
-              A live list of every request the SDK sends and every real-time update it gets back,
-              in the order they happen. Handy for seeing exactly what happens when you click a
-              button above.
-            </p>
-            <ol className="max-h-96 space-y-1 overflow-y-auto font-mono text-[11px] leading-relaxed text-arvist-text-muted">
-              {log.length === 0 ? <li>Nothing yet.</li> : log.map((line, i) => <li key={i}>{line}</li>)}
-            </ol>
-          </div>
+          {backend ? (
+            <div className="rounded-[var(--arvist-radius)] border border-arvist-border bg-arvist-surface p-3">
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-arvist-text-muted">
+                Event log
+              </h2>
+              <p className="sdk-note mb-2">
+                A live list of every request the SDK sends and every real-time update it gets back,
+                in the order they happen. Handy for seeing exactly what happens when you click a
+                button above.
+              </p>
+              <ol className="max-h-96 space-y-1 overflow-y-auto font-mono text-[11px] leading-relaxed text-arvist-text-muted">
+                {log.length === 0 ? <li>Nothing yet.</li> : log.map((line, i) => <li key={i}>{line}</li>)}
+              </ol>
+            </div>
+          ) : null}
         </aside>
 
         {toast ? (
